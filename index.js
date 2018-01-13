@@ -2,6 +2,7 @@ var stream = require('readable-stream')
 var inherits = require('inherits')
 var varint = require('varint')
 var sodium = require('sodium-universal')
+var csx = require('crypto-stream-xor')
 var indexOf = require('sorted-indexof')
 var feed = require('./feed')
 var messages = require('./messages')
@@ -117,9 +118,11 @@ Protocol.prototype.feed = function (key, opts) {
 
     if (this.encrypted) {
       feed.nonce = this._nonce = randomBytes(24)
-      this._xor = sodium.crypto_stream_xor_instance(this._nonce, this.key)
+      this._xor = sodium.sodium_malloc(csx.crypto_stream_xor_STATEBYTES)
+      csx.crypto_stream_xor_init(this._xor, this._nonce, this.key)
       if (this._remoteNonce) {
-        this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
+        this._remoteXor = sodium.sodium_malloc(csx.crypto_stream_xor_STATEBYTES)
+        csx.crypto_stream_xor_init(this._remoteXor, this._remoteNonce, this.key)
       }
     }
 
@@ -130,7 +133,7 @@ Protocol.prototype.feed = function (key, opts) {
   }
 
   var box = encodeFeed(feed, ch.id)
-  if (!feed.nonce && this.encrypted) this._xor.update(box, box)
+  if (!feed.nonce && this.encrypted) csx.crypto_stream_xor_update(this._xor, box, box)
   this._keepAlive = 0
   this.push(box)
 
@@ -195,7 +198,7 @@ Protocol.prototype._kick = function () {
 Protocol.prototype.ping = function () {
   if (!this.key) return true
   var ping = new Buffer([0])
-  if (this._xor) this._xor.update(ping, ping)
+  if (this._xor) csx.crypto_stream_xor_update(this._xor, ping, ping)
   return this.push(ping)
 }
 
@@ -222,7 +225,8 @@ Protocol.prototype._close = function () {
   for (var i = 0; i < feeds.length; i++) feeds[i]._onclose()
 
   if (this._xor) {
-    this._xor.final()
+    csx.crypto_stream_xor_final(this._xor)
+    sodium.sodium_memzero(this._xor)
     this._xor = null
   }
 }
@@ -234,7 +238,7 @@ Protocol.prototype._read = function () {
 Protocol.prototype._push = function (data) {
   if (this.destroyed) return
   this._keepAlive = 0
-  if (this._xor) this._xor.update(data, data)
+  if (this._xor) csx.crypto_stream_xor_update(this._xor, data, data)
   return this.push(data)
 }
 
@@ -285,7 +289,8 @@ Protocol.prototype._onopen = function (id, data, start, end) {
     }
 
     if (this.encrypted && this.key && !this._remoteXor) {
-      this._remoteXor = sodium.crypto_stream_xor_instance(this._remoteNonce, this.key)
+      this._remoteXor = sodium.sodium_malloc(csx.crypto_stream_xor_STATEBYTES)
+      csx.crypto_stream_xor_init(this._remoteXor, this._remoteNonce, this.key)
     }
   }
 
@@ -329,7 +334,7 @@ Protocol.prototype._parse = function (data, start, cb) {
     start = 0
   }
 
-  if (this._remoteXor) this._remoteXor.update(data, data)
+  if (this._remoteXor) csx.crypto_stream_xor_update(this._remoteXor, data, data)
 
   while (start < data.length && !this.destroyed) {
     if (this._missing) start = this._parseMessage(data, start)

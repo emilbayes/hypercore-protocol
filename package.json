@@ -5,6 +5,7 @@
   "main": "index.js",
   "dependencies": {
     "brfs": "^1.4.3",
+    "crypto-stream-xor": "^1.0.0",
     "inherits": "^2.0.3",
     "protocol-buffers": "^3.2.1",
     "readable-stream": "^2.2.6",
