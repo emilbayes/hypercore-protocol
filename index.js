@@ -229,6 +229,12 @@ Protocol.prototype._close = function () {
     sodium.sodium_memzero(this._xor)
     this._xor = null
   }
+
+  if (this._remoteXor) {
+    csx.crypto_stream_xor_final(this._remoteXor)
+    sodium.sodium_memzero(this._remoteXor)
+    this._remoteXor = null
+  }
 }
 
 Protocol.prototype._read = function () {
