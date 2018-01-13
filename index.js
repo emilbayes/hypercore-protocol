@@ -478,13 +478,13 @@ function encodeFeed (feed, id) {
 }
 
 function discoveryKey (key) {
-  var buf = new Buffer(32)
+  var buf = sodium.sodium_malloc(32)
   sodium.crypto_generichash(buf, new Buffer('hypercore'), key)
   return buf
 }
 
 function randomBytes (n) {
-  var buf = new Buffer(n)
+  var buf = sodium.sodium_malloc(n)
   sodium.randombytes_buf(buf)
   return buf
 }
